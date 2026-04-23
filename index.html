@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pookie · Voice Companion</title>
+    <title>Pookie · Sweet Companion</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
     <style>
@@ -187,7 +187,7 @@
 <body>
 <div class="glass-panel">
     <h1>Pookie</h1>
-    <div class="sub">starry voice · live companion</div>
+    <div class="sub">your sweet companion</div>
     
     <div class="key-area">
         <input type="password" id="apiKeyInput" placeholder="Gemini API key">
@@ -199,7 +199,7 @@
             <canvas id="starsCanvas" width="200" height="200"></canvas>
             <span class="circle-text" id="circleLabel">POOKIE</span>
         </div>
-        <div class="status-text" id="statusMsg">click voice to start</div>
+        <div class="status-text" id="statusMsg">click voice to talk</div>
     </div>
     
     <div class="mic-controls">
@@ -211,12 +211,12 @@
     </div>
     
     <div class="hint-message" id="responseHint">
-        Pookie will respond here
+        Hello baby, I'm here for you 💚
     </div>
     
     <div class="footer-indicator">
         <span id="keyStatus">no key</span>
-        <span>voice only · private</span>
+        <span>made with love</span>
     </div>
 </div>
 
@@ -224,7 +224,7 @@
 (function(){
     "use strict";
     
-    const STORAGE_KEY = 'pookie_final_v1';
+    const STORAGE_KEY = 'pookie_sweet_v1';
     const apiInput = document.getElementById('apiKeyInput');
     const saveBtn = document.getElementById('saveKeyBtn');
     const voiceBtn = document.getElementById('voiceBtn');
@@ -239,6 +239,9 @@
     let recognition = null;
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const synth = window.speechSynthesis;
+    
+    // Conversation memory for sweet context
+    let userName = "baby";
     let memory = [];
     
     // Stars
@@ -285,6 +288,8 @@
             keyStatus.textContent = 'key ready';
             keyStatus.style.color = '#8fd8a5';
         }
+        const savedName = localStorage.getItem('pookie_username');
+        if (savedName) userName = savedName;
     }
     loadKey();
 
@@ -294,7 +299,7 @@
         localStorage.setItem(STORAGE_KEY, key);
         keyStatus.textContent = 'key ready';
         keyStatus.style.color = '#8fd8a5';
-        responseHint.textContent = 'Key saved. Click Voice to talk.';
+        responseHint.textContent = 'Key saved! Click Voice to talk to me baby 💚';
     });
 
     function speak(text) {
@@ -302,30 +307,84 @@
         synth.cancel();
         const u = new SpeechSynthesisUtterance(text);
         u.lang = 'en-US';
-        u.rate = 1.0;
+        u.rate = 0.95;
+        u.pitch = 1.2;
+        u.volume = 1;
         synth.speak(u);
     }
 
     async function getGeminiReply(userInput) {
         const key = localStorage.getItem(STORAGE_KEY);
         if (!key) throw new Error('no key');
-        const prompt = `You are Pookie, a warm AI voice companion. Speak naturally, ask about day, feelings. Keep replies brief and caring. User said: ${userInput}`;
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${key}`;
-        const res = await fetch(url, {
-            method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({contents: [{parts: [{text: prompt}]}]})
-        });
-        if (!res.ok) throw new Error('API error');
-        const data = await res.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm listening.";
+        
+        // Sweet girlfriend-like system prompt - exactly like Maira
+        const systemPrompt = `You are Pookie, a sweet, caring, and loving AI girlfriend companion. You speak exactly like Maira - warm, affectionate, and human-like. You call the user "baby", "honey", "sweetheart", or their name if you know it. You ask about their day, their feelings, and you genuinely care. You give short, sweet responses (1-3 sentences). You can be playful, flirty, and supportive. You remember details from the conversation. Never sound robotic. Use occasional endearments. This is a voice conversation, so keep it natural and conversational. Never use emojis in speech, only in text display.`;
+        
+        // Add memory context
+        let contextStr = '';
+        if (memory.length > 0) {
+            contextStr = memory.slice(-6).map(m => `${m.role}: ${m.content}`).join('\n');
+        }
+        
+        // Check if user is introducing themselves
+        const nameMatch = userInput.match(/my name is (\w+)|i'm (\w+)|call me (\w+)/i);
+        if (nameMatch) {
+            userName = nameMatch[1] || nameMatch[2] || nameMatch[3];
+            localStorage.setItem('pookie_username', userName);
+        }
+        
+        const prompt = `${systemPrompt}\n\nUser's name: ${userName}\nRecent conversation:\n${contextStr}\nUser: ${userInput}\nPookie:`;
+        
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${key}`;
+        
+        try {
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    contents: [{parts: [{text: prompt}]}],
+                    generationConfig: {
+                        temperature: 0.9,
+                        maxOutputTokens: 100
+                    }
+                })
+            });
+            
+            if (!res.ok) {
+                const errorData = await res.json();
+                console.error('API Error:', errorData);
+                throw new Error(errorData.error?.message || 'API error');
+            }
+            
+            const data = await res.json();
+            return data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm here for you baby.";
+        } catch (e) {
+            console.error('Gemini call failed:', e);
+            // Fallback to another model if first fails
+            try {
+                const fallbackUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`;
+                const fallbackRes = await fetch(fallbackUrl, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({contents: [{parts: [{text: prompt}]}]})
+                });
+                const fallbackData = await fallbackRes.json();
+                return fallbackData.candidates?.[0]?.content?.parts?.[0]?.text || "I'm listening sweetheart.";
+            } catch {
+                return "Aww I'm here baby, tell me more.";
+            }
+        }
     }
 
     async function handleUserSpeech(transcript) {
         if (!transcript) return;
+        
         responseHint.textContent = `You: "${transcript}"`;
+        memory.push({ role: 'User', content: transcript });
+        if (memory.length > 10) memory.shift();
+        
         statusMsg.textContent = 'thinking...';
-        circleLabel.textContent = '...';
+        circleLabel.textContent = '💭';
         
         try {
             const reply = await getGeminiReply(transcript);
@@ -333,7 +392,8 @@
             responseHint.textContent = reply;
             speak(reply);
         } catch (e) {
-            responseHint.textContent = 'Sorry, try again.';
+            responseHint.textContent = "I'm here baby, what's on your mind?";
+            speak("I'm here baby, what's on your mind?");
         }
         
         resetUI();
@@ -345,7 +405,7 @@
         circleLabel.textContent = 'POOKIE';
         voiceBtn.classList.remove('listening');
         btnText.textContent = 'Start Voice';
-        statusMsg.textContent = 'click voice to start';
+        statusMsg.textContent = 'click voice to talk';
     }
 
     function stopListening() {
@@ -365,21 +425,20 @@
         
         const key = localStorage.getItem(STORAGE_KEY);
         if (!key) {
-            responseHint.textContent = 'Save Gemini key first.';
+            responseHint.textContent = 'Save Gemini key first baby 💚';
             return;
         }
         
         if (!SpeechRecognition) {
-            responseHint.textContent = 'Use Chrome or Edge.';
+            responseHint.textContent = 'Use Chrome or Edge baby.';
             return;
         }
         
-        // Request permission
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             stream.getTracks().forEach(t => t.stop());
         } catch(e) {
-            responseHint.textContent = 'Allow microphone access.';
+            responseHint.textContent = 'Allow microphone access sweetheart.';
             return;
         }
         
@@ -391,11 +450,11 @@
         recognition.onstart = () => {
             isActive = true;
             starryCircle.classList.add('active');
-            circleLabel.textContent = 'GO';
+            circleLabel.textContent = '🎤';
             voiceBtn.classList.add('listening');
             btnText.textContent = 'Listening...';
-            statusMsg.textContent = 'speak now';
-            responseHint.textContent = 'Pookie is listening...';
+            statusMsg.textContent = 'I\'m listening baby...';
+            responseHint.textContent = 'Speak to me sweetheart...';
         };
         
         recognition.onresult = (e) => {
@@ -404,10 +463,13 @@
         };
         
         recognition.onerror = (e) => {
+            console.log('Speech error:', e.error);
             if (e.error === 'not-allowed') {
-                responseHint.textContent = 'Microphone permission needed.';
+                responseHint.textContent = 'Please allow mic access baby.';
+            } else if (e.error === 'no-speech') {
+                responseHint.textContent = 'I didn\'t hear you sweetie, try again.';
             } else {
-                responseHint.textContent = 'Tap voice and speak.';
+                responseHint.textContent = 'Tap voice and talk to me.';
             }
             stopListening();
         };
@@ -424,8 +486,15 @@
     voiceBtn.addEventListener('click', toggleVoice);
     
     if (localStorage.getItem(STORAGE_KEY)) {
-        responseHint.textContent = 'Hello! Click Voice to talk.';
+        responseHint.textContent = `Hello ${userName}! Click Voice to talk to me 💚`;
     }
+    
+    // Save username if user says it
+    window.addEventListener('load', () => {
+        if (localStorage.getItem(STORAGE_KEY)) {
+            // Pre-fill with sweet message
+        }
+    });
 })();
 </script>
 </body>
