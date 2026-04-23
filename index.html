@@ -1,9 +1,21 @@
 <!DOCTYPE html>
+
+<html>
+<head>
+    <meta charset="utf-8">
+    <title></title>
+</head>
+<body>
+    
+</body>
+</html>
+
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pookie · Starry Voice</title>
+    <title>Pookie - Starry Voice</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -92,10 +104,16 @@
             justify-content: center;
             margin-bottom: 20px;
             overflow: hidden;
+            transition: all 0.3s ease;
         }
         .starry-circle.active {
             box-shadow: 0 0 80px #3aae5e, inset 0 0 50px #2e7a42;
             border-color: #8af0b0;
+            animation: pulse-ring 2s ease-in-out infinite;
+        }
+        @keyframes pulse-ring {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.02); }
         }
         #starsCanvas {
             position: absolute;
@@ -141,6 +159,7 @@
             gap: 8px;
             min-width: 110px;
             justify-content: center;
+            transition: all 0.3s ease;
         }
         .stop-btn {
             background: rgba(55, 20, 20, 0.5);
@@ -155,6 +174,10 @@
             background: #45201e;
             border-color: #df6f6f;
         }
+        .mic-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
         .hint-message {
             background: rgba(8, 25, 14, 0.4);
             border-radius: 40px;
@@ -165,6 +188,7 @@
             font-size: 14px;
             text-align: center;
             backdrop-filter: blur(8px);
+            min-height: 50px;
         }
         .footer-indicator {
             display: flex;
@@ -173,12 +197,22 @@
             color: #6b9e7a;
             font-size: 12px;
         }
+        .interim-text {
+            color: #8bc09b;
+            font-style: italic;
+        }
+        .error-text {
+            color: #e57373;
+        }
+        .success-text {
+            color: #81c784;
+        }
     </style>
 </head>
 <body>
 <div class="glass-panel">
     <h1>Pookie</h1>
-    <div class="sub">starry voice · live companion</div>
+    <div class="sub">starry voice - live companion</div>
     
     <div class="key-area">
         <input type="password" id="apiKeyInput" placeholder="Gemini API key">
@@ -194,8 +228,8 @@
     </div>
     
     <div class="mic-controls">
-        <button class="mic-btn" id="micStartBtn">🎤 Start</button>
-        <button class="stop-btn" id="micStopBtn">⏹ Stop</button>
+        <button class="mic-btn" id="micStartBtn">Start</button>
+        <button class="stop-btn" id="micStopBtn">Stop</button>
     </div>
     
     <div class="hint-message" id="responseHint">
@@ -203,231 +237,331 @@
     </div>
     
     <div class="footer-indicator">
-        <span id="keyStatus">⚪ no key</span>
-        <span>voice only · private</span>
+        <span id="keyStatus">no key</span>
+        <span>voice only - private</span>
     </div>
 </div>
 
 <script>
-    (function(){
-        "use strict";
-        const STORAGE_KEY = 'pookie_starry_v2';
-        const apiInput = document.getElementById('apiKeyInput');
-        const saveBtn = document.getElementById('saveKeyBtn');
-        const micStartBtn = document.getElementById('micStartBtn');
-        const micStopBtn = document.getElementById('micStopBtn');
-        const circleLabel = document.getElementById('circleLabel');
-        const statusMsg = document.getElementById('statusMsg');
-        const responseHint = document.getElementById('responseHint');
-        const keyStatus = document.getElementById('keyStatus');
-        const starryCircle = document.getElementById('starryCircle');
+(function(){
+    "use strict";
+    
+    const STORAGE_KEY = 'pookie_starry_v2';
+    const apiInput = document.getElementById('apiKeyInput');
+    const saveBtn = document.getElementById('saveKeyBtn');
+    const micStartBtn = document.getElementById('micStartBtn');
+    const micStopBtn = document.getElementById('micStopBtn');
+    const circleLabel = document.getElementById('circleLabel');
+    const statusMsg = document.getElementById('statusMsg');
+    const responseHint = document.getElementById('responseHint');
+    const keyStatus = document.getElementById('keyStatus');
+    const starryCircle = document.getElementById('starryCircle');
 
-        let isActive = false;
-        let recognition = null;
-        let manualStop = false;
-        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-        const synth = window.speechSynthesis;
-        let memory = [];
-        
-        // Stars
-        const canvas = document.getElementById('starsCanvas');
-        const ctx = canvas.getContext('2d');
-        let stars = [];
-        let animationFrame = null;
-        
-        function initStars() {
-            stars = [];
-            for (let i = 0; i < 40; i++) {
-                stars.push({
-                    x: Math.random() * 200,
-                    y: Math.random() * 200,
-                    size: Math.random() * 2 + 0.8,
-                    brightness: Math.random() * 0.7 + 0.3
-                });
-            }
-        }
-        
-        function drawStars() {
-            ctx.clearRect(0, 0, 200, 200);
-            ctx.fillStyle = '#fff9e0';
-            stars.forEach(star => {
-                star.brightness += (Math.random() - 0.5) * 0.08;
-                star.brightness = Math.max(0.2, Math.min(1, star.brightness));
-                ctx.beginPath();
-                ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
-                ctx.fillStyle = `rgba(255, 250, 200, ${star.brightness * 0.9})`;
-                ctx.fill();
-                ctx.shadowColor = '#aaffbb';
-                ctx.shadowBlur = star.brightness * 8;
-                ctx.fill();
-                ctx.shadowBlur = 0;
+    let isActive = false;
+    let recognition = null;
+    let manualStop = false;
+    let restartTimeout = null;
+    
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const synth = window.speechSynthesis;
+    let memory = [];
+    
+    // Stars animation
+    const canvas = document.getElementById('starsCanvas');
+    const ctx = canvas.getContext('2d');
+    let stars = [];
+    let animationFrame = null;
+    
+    function initStars() {
+        stars = [];
+        for (let i = 0; i < 40; i++) {
+            stars.push({
+                x: Math.random() * 200,
+                y: Math.random() * 200,
+                size: Math.random() * 2 + 0.8,
+                brightness: Math.random() * 0.7 + 0.3
             });
-            animationFrame = requestAnimationFrame(drawStars);
         }
-        initStars();
-        drawStars();
-
-        function loadKey() {
-            const key = localStorage.getItem(STORAGE_KEY);
-            if (key) {
-                apiInput.value = key;
-                keyStatus.innerHTML = '● key ready';
-                keyStatus.style.color = '#8fd8a5';
-            }
-        }
-        loadKey();
-
-        saveBtn.addEventListener('click', () => {
-            const key = apiInput.value.trim();
-            if (!key) return alert('Enter valid Gemini API key');
-            localStorage.setItem(STORAGE_KEY, key);
-            keyStatus.innerHTML = '● key ready';
-            keyStatus.style.color = '#8fd8a5';
-            responseHint.textContent = 'Key saved. Tap Start to talk.';
+    }
+    
+    function drawStars() {
+        ctx.clearRect(0, 0, 200, 200);
+        stars.forEach(star => {
+            star.brightness += (Math.random() - 0.5) * 0.08;
+            star.brightness = Math.max(0.2, Math.min(1, star.brightness));
+            ctx.beginPath();
+            ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(255, 250, 200, ${star.brightness * 0.9})`;
+            ctx.fill();
+            ctx.shadowColor = '#aaffbb';
+            ctx.shadowBlur = star.brightness * 8;
+            ctx.fill();
+            ctx.shadowBlur = 0;
         });
+        animationFrame = requestAnimationFrame(drawStars);
+    }
+    initStars();
+    drawStars();
 
-        function speak(text) {
-            if (!text) return;
-            synth.cancel();
-            const u = new SpeechSynthesisUtterance(text);
-            u.lang = 'en-US';
-            u.rate = 1.0;
-            synth.speak(u);
+    function loadKey() {
+        const key = localStorage.getItem(STORAGE_KEY);
+        if (key) {
+            apiInput.value = key;
+            keyStatus.textContent = 'key ready';
+            keyStatus.style.color = '#8fd8a5';
         }
+    }
+    loadKey();
 
-        async function getGeminiReply(userInput) {
-            const key = localStorage.getItem(STORAGE_KEY);
-            if (!key) throw new Error('no key');
-            const system = `You are Pookie, a warm AI voice companion. Speak naturally, ask about the user's day, feelings. Keep replies 1-3 sentences.`;
-            let contextStr = memory.length ? memory.map(m => `${m.role}: ${m.content}`).join('\n') : '';
-            const prompt = `${system}\n\nConversation:\n${contextStr}\nUser: ${userInput}\nPookie:`;
-            const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${key}`;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({contents: [{parts: [{text: prompt}]}]})
-            });
-            if (!res.ok) throw new Error('API error');
-            const data = await res.json();
-            return data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm here.";
-        }
+    saveBtn.addEventListener('click', () => {
+        const key = apiInput.value.trim();
+        if (!key) return alert('Enter valid Gemini API key');
+        localStorage.setItem(STORAGE_KEY, key);
+        keyStatus.textContent = 'key ready';
+        keyStatus.style.color = '#8fd8a5';
+        responseHint.textContent = 'Key saved. Tap Start to talk.';
+        responseHint.className = 'hint-message success-text';
+    });
 
-        async function handleUserSpeech(transcript) {
-            if (!transcript) return;
-            responseHint.textContent = `You: "${transcript}"`;
-            memory.push({ role: 'User', content: transcript });
-            if (memory.length > 10) memory.shift();
-            
-            statusMsg.textContent = 'thinking...';
-            circleLabel.textContent = '...';
-            
-            try {
-                const reply = await getGeminiReply(transcript);
-                memory.push({ role: 'Pookie', content: reply });
-                responseHint.textContent = reply;
-                speak(reply);
-                statusMsg.textContent = 'tap Start to talk again';
-            } catch (e) {
-                responseHint.textContent = 'Error: ' + e.message;
-                statusMsg.textContent = 'error · try again';
-            }
-            
-            circleLabel.textContent = 'POOKIE';
-            starryCircle.classList.remove('active');
-            isActive = false;
-        }
+    function speak(text) {
+        if (!text) return;
+        synth.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-US';
+        u.rate = 1.0;
+        u.pitch = 1.0;
+        synth.speak(u);
+    }
 
-        async function requestMicPermission() {
-            try {
-                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                stream.getTracks().forEach(track => track.stop());
-                return true;
-            } catch {
-                alert('Please allow microphone access.');
-                return false;
-            }
-        }
+    async function getGeminiReply(userInput) {
+        const key = localStorage.getItem(STORAGE_KEY);
+        if (!key) throw new Error('no key');
+        const system = `You are Pookie, a warm AI voice companion. Speak naturally, ask about the user's day, feelings. Keep replies 1-3 sentences.`;
+        let contextStr = memory.length ? memory.map(m => `${m.role}: ${m.content}`).join('\\n') : '';
+        const prompt = `${system}\\n\\nConversation:\\n${contextStr}\\nUser: ${userInput}\\nPookie:`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key=${key}`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({contents: [{parts: [{text: prompt}]}]})
+        });
+        if (!res.ok) throw new Error('API error ' + res.status);
+        const data = await res.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm here.";
+    }
 
-        async function startVoice() {
-            const key = localStorage.getItem(STORAGE_KEY);
-            if (!key) {
-                responseHint.textContent = 'Please save your Gemini key first.';
-                return;
-            }
-            if (!SpeechRecognition) {
-                alert('Speech not supported.');
-                return;
-            }
-            
-            const permitted = await requestMicPermission();
-            if (!permitted) return;
-            
-            if (isActive) {
-                recognition.stop();
-            }
-            
-            manualStop = false;
-            recognition = new SpeechRecognition();
-            recognition.continuous = false;
-            recognition.interimResults = false;
-            recognition.lang = 'en-US';
-            
-            recognition.onstart = () => {
-                isActive = true;
-                starryCircle.classList.add('active');
-                circleLabel.textContent = 'GO';
-                statusMsg.textContent = 'listening...';
-                responseHint.textContent = 'Speak now — Pookie is listening';
-            };
-            
-            recognition.onresult = (e) => {
-                const said = e.results[0][0].transcript;
-                handleUserSpeech(said);
-            };
-            
-            recognition.onerror = (e) => {
-                if (e.error === 'aborted' && manualStop) {
-                    responseHint.textContent = 'Stopped.';
-                } else if (e.error !== 'aborted') {
-                    responseHint.textContent = 'Voice error: ' + e.error;
-                }
-                resetUI();
-            };
-            
-            recognition.onend = () => {
-                if (isActive) resetUI();
-            };
-            
-            recognition.start();
-        }
-
-        function stopVoice() {
-            manualStop = true;
-            if (recognition) {
-                recognition.stop();
-            }
-            synth.cancel();
-            resetUI();
-            responseHint.textContent = 'Stopped. Tap Start to talk again.';
-            statusMsg.textContent = 'idle';
-        }
-
-        function resetUI() {
-            isActive = false;
-            starryCircle.classList.remove('active');
-            circleLabel.textContent = 'POOKIE';
-            if (statusMsg.textContent !== 'thinking...') {
-                statusMsg.textContent = 'tap Start to talk';
-            }
-        }
-
-        micStartBtn.addEventListener('click', startVoice);
-        micStopBtn.addEventListener('click', stopVoice);
+    async function handleUserSpeech(transcript) {
+        if (!transcript || !transcript.trim()) return;
         
-        if (localStorage.getItem(STORAGE_KEY)) {
-            responseHint.textContent = 'Hello! Tap Start and talk to me.';
+        responseHint.textContent = `You said: "${transcript}"`;
+        responseHint.className = 'hint-message';
+        memory.push({ role: 'User', content: transcript });
+        if (memory.length > 10) memory.shift();
+        
+        statusMsg.textContent = 'thinking...';
+        circleLabel.textContent = '...';
+        
+        try {
+            const reply = await getGeminiReply(transcript);
+            memory.push({ role: 'Pookie', content: reply });
+            responseHint.textContent = reply;
+            responseHint.className = 'hint-message success-text';
+            speak(reply);
+            statusMsg.textContent = 'tap Start to talk again';
+        } catch (e) {
+            responseHint.textContent = 'Error: ' + e.message;
+            responseHint.className = 'hint-message error-text';
+            statusMsg.textContent = 'error - try again';
         }
-    })();
+        
+        circleLabel.textContent = 'POOKIE';
+        starryCircle.classList.remove('active');
+        isActive = false;
+    }
+
+    function setupRecognition() {
+        if (!SpeechRecognition) {
+            responseHint.textContent = 'Speech recognition not supported in this browser.';
+            responseHint.className = 'hint-message error-text';
+            return null;
+        }
+        
+        const rec = new SpeechRecognition();
+        rec.continuous = true;
+        rec.interimResults = true;
+        rec.lang = 'en-US';
+        rec.maxAlternatives = 1;
+        
+        rec.onstart = () => {
+            isActive = true;
+            manualStop = false;
+            starryCircle.classList.add('active');
+            circleLabel.textContent = 'GO';
+            statusMsg.textContent = 'listening...';
+            responseHint.textContent = 'Speak now - Pookie is listening';
+            responseHint.className = 'hint-message';
+            micStartBtn.disabled = true;
+        };
+        
+        rec.onresult = (e) => {
+            let finalTranscript = '';
+            let interimTranscript = '';
+            
+            for (let i = e.resultIndex; i < e.results.length; i++) {
+                const transcript = e.results[i][0].transcript;
+                if (e.results[i].isFinal) {
+                    finalTranscript += transcript;
+                } else {
+                    interimTranscript += transcript;
+                }
+            }
+            
+            if (interimTranscript) {
+                responseHint.textContent = `Hearing: "${interimTranscript}"`;
+                responseHint.className = 'hint-message interim-text';
+            }
+            
+            if (finalTranscript) {
+                // Stop listening while processing
+                rec.stop();
+                handleUserSpeech(finalTranscript);
+            }
+        };
+        
+        rec.onerror = (e) => {
+            console.log('Speech error:', e.error);
+            
+            if (e.error === 'aborted' && manualStop) {
+                responseHint.textContent = 'Stopped by user.';
+                resetUI();
+                return;
+            }
+            
+            if (e.error === 'no-speech') {
+                responseHint.textContent = 'No speech detected. Tap Start and try again.';
+                responseHint.className = 'hint-message';
+                resetUI();
+                return;
+            }
+            
+            if (e.error === 'audio-capture') {
+                responseHint.textContent = 'No microphone found. Please check your device.';
+                responseHint.className = 'hint-message error-text';
+                resetUI();
+                return;
+            }
+            
+            if (e.error === 'not-allowed') {
+                responseHint.textContent = 'Microphone permission denied. Please allow access.';
+                responseHint.className = 'hint-message error-text';
+                resetUI();
+                return;
+            }
+            
+            if (e.error === 'network') {
+                responseHint.textContent = 'Network error. Check your connection.';
+                responseHint.className = 'hint-message error-text';
+                resetUI();
+                return;
+            }
+            
+            // For other errors, try to restart
+            responseHint.textContent = 'Voice error: ' + e.error + '. Retrying...';
+            responseHint.className = 'hint-message error-text';
+            
+            if (!manualStop && isActive) {
+                clearTimeout(restartTimeout);
+                restartTimeout = setTimeout(() => {
+                    if (!manualStop) startVoice();
+                }, 1000);
+            }
+        };
+        
+        rec.onend = () => {
+            // Only reset UI if we're not in the middle of processing
+            if (!isActive) {
+                resetUI();
+            }
+            
+            // Auto-restart if still active and not manually stopped
+            if (isActive && !manualStop) {
+                clearTimeout(restartTimeout);
+                restartTimeout = setTimeout(() => {
+                    if (!manualStop) startVoice();
+                }, 500);
+            }
+        };
+        
+        return rec;
+    }
+
+    async function startVoice() {
+        const key = localStorage.getItem(STORAGE_KEY);
+        if (!key) {
+            responseHint.textContent = 'Please save your Gemini key first.';
+            responseHint.className = 'hint-message error-text';
+            return;
+        }
+        
+        if (!SpeechRecognition) {
+            responseHint.textContent = 'Speech recognition not supported. Use Chrome or Edge.';
+            responseHint.className = 'hint-message error-text';
+            return;
+        }
+        
+        // Stop any existing recognition
+        if (recognition) {
+            try { recognition.stop(); } catch(e) {}
+            recognition = null;
+        }
+        
+        // Create fresh recognition instance
+        recognition = setupRecognition();
+        if (!recognition) return;
+        
+        try {
+            recognition.start();
+        } catch (e) {
+            console.error('Start error:', e);
+            responseHint.textContent = 'Could not start microphone. Try again.';
+            responseHint.className = 'hint-message error-text';
+            resetUI();
+        }
+    }
+
+    function stopVoice() {
+        manualStop = true;
+        clearTimeout(restartTimeout);
+        
+        if (recognition) {
+            try { recognition.stop(); } catch(e) {}
+            recognition = null;
+        }
+        
+        synth.cancel();
+        resetUI();
+        responseHint.textContent = 'Stopped. Tap Start to talk again.';
+        responseHint.className = 'hint-message';
+        statusMsg.textContent = 'idle';
+    }
+
+    function resetUI() {
+        isActive = false;
+        starryCircle.classList.remove('active');
+        circleLabel.textContent = 'POOKIE';
+        micStartBtn.disabled = false;
+        if (statusMsg.textContent !== 'thinking...') {
+            statusMsg.textContent = 'tap Start to talk';
+        }
+    }
+
+    micStartBtn.addEventListener('click', startVoice);
+    micStopBtn.addEventListener('click', stopVoice);
+    
+    if (localStorage.getItem(STORAGE_KEY)) {
+        responseHint.textContent = 'Hello! Tap Start and talk to me.';
+    }
+})();
 </script>
 </body>
-</html>
+</html>'''
