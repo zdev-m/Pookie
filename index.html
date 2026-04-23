@@ -1,24 +1,10 @@
 <!DOCTYPE html>
-
-<html>
-<head>
-    <meta charset="utf-8">
-    <title></title>
-</head>
-<body>
-    
-</body>
-</html>
-
-<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Pookie · Starry Voice</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,300;14..32,400;14..32,500;14..32,600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -39,33 +25,27 @@
             border-radius: 48px;
             padding: 35px 30px;
             border: 1px solid rgba(70, 190, 110, 0.15);
-            box-shadow: 0 30px 60px -10px rgba(0, 20, 5, 0.5), inset 0 0 0 1px rgba(80, 200, 120, 0.1);
+            box-shadow: 0 30px 60px -10px rgba(0, 20, 5, 0.5);
         }
         h1 {
             font-size: 44px;
             font-weight: 350;
-            letter-spacing: -0.02em;
             color: #b8eccb;
             margin-bottom: 4px;
         }
         .sub {
             color: #8bc09b;
             font-size: 15px;
-            font-weight: 350;
             margin-bottom: 28px;
             border-left: 2px solid #4f9f6a;
             padding-left: 14px;
         }
-        
-        /* API key area */
         .key-area {
             background: rgba(8, 25, 14, 0.5);
             backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
             border-radius: 60px;
             padding: 5px 5px 5px 22px;
             display: flex;
-            align-items: center;
             margin-bottom: 38px;
             border: 1px solid rgba(70, 170, 100, 0.25);
         }
@@ -76,7 +56,6 @@
             color: #caf5d8;
             font-size: 13px;
             outline: none;
-            font-family: 'Inter', monospace;
         }
         .key-area input::placeholder { color: #588f68; }
         .key-area button {
@@ -88,16 +67,12 @@
             cursor: pointer;
             font-size: 13px;
             font-weight: 450;
-            transition: all 0.15s;
             white-space: nowrap;
-            backdrop-filter: blur(5px);
         }
         .key-area button:hover {
             background: #1e452b;
             border-color: #6fdf98;
         }
-        
-        /* Starry Circle */
         .mic-wrapper {
             display: flex;
             flex-direction: column;
@@ -117,14 +92,11 @@
             justify-content: center;
             margin-bottom: 20px;
             overflow: hidden;
-            transition: box-shadow 0.2s;
         }
         .starry-circle.active {
             box-shadow: 0 0 80px #3aae5e, inset 0 0 50px #2e7a42;
             border-color: #8af0b0;
         }
-        
-        /* Stars Canvas */
         #starsCanvas {
             position: absolute;
             top: 0;
@@ -133,7 +105,6 @@
             height: 100%;
             pointer-events: none;
         }
-        
         .circle-text {
             position: relative;
             z-index: 2;
@@ -142,18 +113,13 @@
             letter-spacing: 6px;
             text-transform: uppercase;
             font-weight: 350;
-            text-shadow: 0 0 20px #1e5e32;
         }
-        
         .status-text {
             font-size: 17px;
             color: #b2dfc0;
-            font-weight: 350;
             min-height: 32px;
             margin-bottom: 10px;
         }
-        
-        /* Mic Controls */
         .mic-controls {
             display: flex;
             gap: 15px;
@@ -170,7 +136,6 @@
             cursor: pointer;
             font-size: 15px;
             font-weight: 450;
-            transition: all 0.15s;
             display: flex;
             align-items: center;
             gap: 8px;
@@ -190,7 +155,6 @@
             background: #45201e;
             border-color: #df6f6f;
         }
-        
         .hint-message {
             background: rgba(8, 25, 14, 0.4);
             border-radius: 40px;
@@ -202,7 +166,6 @@
             text-align: center;
             backdrop-filter: blur(8px);
         }
-        
         .footer-indicator {
             display: flex;
             justify-content: space-between;
@@ -223,7 +186,6 @@
     </div>
     
     <div class="mic-wrapper">
-        <!-- Circle with stars -->
         <div class="starry-circle" id="starryCircle">
             <canvas id="starsCanvas" width="200" height="200"></canvas>
             <span class="circle-text" id="circleLabel">POOKIE</span>
@@ -231,7 +193,6 @@
         <div class="status-text" id="statusMsg">click mic to start</div>
     </div>
     
-    <!-- Small Mic + Stop buttons -->
     <div class="mic-controls">
         <button class="mic-btn" id="micStartBtn">🎤 Start</button>
         <button class="stop-btn" id="micStopBtn">⏹ Stop</button>
@@ -250,7 +211,7 @@
 <script>
     (function(){
         "use strict";
-        const STORAGE_KEY = 'pookie_starry_v1';
+        const STORAGE_KEY = 'pookie_starry_v2';
         const apiInput = document.getElementById('apiKeyInput');
         const saveBtn = document.getElementById('saveKeyBtn');
         const micStartBtn = document.getElementById('micStartBtn');
@@ -263,11 +224,12 @@
 
         let isActive = false;
         let recognition = null;
+        let manualStop = false;
         const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
         const synth = window.speechSynthesis;
         let memory = [];
         
-        // Stars animation
+        // Stars
         const canvas = document.getElementById('starsCanvas');
         const ctx = canvas.getContext('2d');
         let stars = [];
@@ -280,8 +242,7 @@
                     x: Math.random() * 200,
                     y: Math.random() * 200,
                     size: Math.random() * 2 + 0.8,
-                    brightness: Math.random() * 0.7 + 0.3,
-                    speed: Math.random() * 0.02 + 0.005
+                    brightness: Math.random() * 0.7 + 0.3
                 });
             }
         }
@@ -290,15 +251,12 @@
             ctx.clearRect(0, 0, 200, 200);
             ctx.fillStyle = '#fff9e0';
             stars.forEach(star => {
-                // Twinkle effect
                 star.brightness += (Math.random() - 0.5) * 0.08;
                 star.brightness = Math.max(0.2, Math.min(1, star.brightness));
-                
                 ctx.beginPath();
                 ctx.arc(star.x, star.y, star.size, 0, Math.PI * 2);
                 ctx.fillStyle = `rgba(255, 250, 200, ${star.brightness * 0.9})`;
                 ctx.fill();
-                // Add glow
                 ctx.shadowColor = '#aaffbb';
                 ctx.shadowBlur = star.brightness * 8;
                 ctx.fill();
@@ -309,7 +267,6 @@
         initStars();
         drawStars();
 
-        // Load key
         function loadKey() {
             const key = localStorage.getItem(STORAGE_KEY);
             if (key) {
@@ -350,10 +307,7 @@
                 headers: {'Content-Type': 'application/json'},
                 body: JSON.stringify({contents: [{parts: [{text: prompt}]}]})
             });
-            if (!res.ok) {
-                const e = await res.json();
-                throw new Error(e.error?.message || 'API error');
-            }
+            if (!res.ok) throw new Error('API error');
             const data = await res.json();
             return data.candidates?.[0]?.content?.parts?.[0]?.text || "I'm here.";
         }
@@ -372,7 +326,7 @@
                 memory.push({ role: 'Pookie', content: reply });
                 responseHint.textContent = reply;
                 speak(reply);
-                statusMsg.textContent = 'tap mic to continue';
+                statusMsg.textContent = 'tap Start to talk again';
             } catch (e) {
                 responseHint.textContent = 'Error: ' + e.message;
                 statusMsg.textContent = 'error · try again';
@@ -388,8 +342,8 @@
                 const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 stream.getTracks().forEach(track => track.stop());
                 return true;
-            } catch (err) {
-                alert('Please allow microphone access in browser settings.');
+            } catch {
+                alert('Please allow microphone access.');
                 return false;
             }
         }
@@ -401,7 +355,7 @@
                 return;
             }
             if (!SpeechRecognition) {
-                alert('Speech not supported. Use Chrome/Edge.');
+                alert('Speech not supported.');
                 return;
             }
             
@@ -412,6 +366,7 @@
                 recognition.stop();
             }
             
+            manualStop = false;
             recognition = new SpeechRecognition();
             recognition.continuous = false;
             recognition.interimResults = false;
@@ -431,7 +386,11 @@
             };
             
             recognition.onerror = (e) => {
-                responseHint.textContent = 'Voice error: ' + e.error;
+                if (e.error === 'aborted' && manualStop) {
+                    responseHint.textContent = 'Stopped.';
+                } else if (e.error !== 'aborted') {
+                    responseHint.textContent = 'Voice error: ' + e.error;
+                }
                 resetUI();
             };
             
@@ -443,6 +402,7 @@
         }
 
         function stopVoice() {
+            manualStop = true;
             if (recognition) {
                 recognition.stop();
             }
@@ -457,7 +417,7 @@
             starryCircle.classList.remove('active');
             circleLabel.textContent = 'POOKIE';
             if (statusMsg.textContent !== 'thinking...') {
-                statusMsg.textContent = 'tap mic to talk';
+                statusMsg.textContent = 'tap Start to talk';
             }
         }
 
